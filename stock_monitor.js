@@ -11,11 +11,11 @@ const TARGET_PRODUCT_ID = 716794;
 const SHOP_ID = '237519'; 
 const CUSTOM_MESSAGE = 'units available';
 
-// 🛑 SEU ID FIXO E ESTÁVEL DO DISCORD (Coloque entre aspas simples para não corromper)
+// 🛑 SEU ID FIXO E ESTÁVEL DO DISCORD
 let lastDiscordMessageId = '1508134899020988546';
 
 async function checkStock() {
-    console.log(`[${new Date().toLocaleTimeString()}] -> Iniciando checagem de estoque...`);
+    console.log(`[${new Date().toLocaleTimeString()}] -> Starting stock check...`);
     let browser;
     
     try {
@@ -62,17 +62,17 @@ async function checkStock() {
                 if (matchedProduct) {
                     const currentStock = matchedProduct.stock_count !== undefined ? matchedProduct.stock_count : (matchedProduct.stock || 0); 
                     const productName = matchedProduct.name || 'Unknown Product';
-                    console.log(`[${new Date().toLocaleTimeString()}] Sucesso! Produto: ${productName} | Estoque: ${currentStock}`);
+                    console.log(`[${new Date().toLocaleTimeString()}] Success! Product: ${productName} | Stock: ${currentStock}`);
                     
                     await sendToDiscord(productName, currentStock);
                 }
             }
         } else {
-            console.error(`[${new Date().toLocaleTimeString()}] Resposta inválida obtida da API.`);
+            console.error(`[${new Date().toLocaleTimeString()}] Invalid response received from API.`);
         }
 
     } catch (error) {
-        console.error(`[${new Date().toLocaleTimeString()}] Falha no ciclo atual:`, error.message);
+        console.error(`[${new Date().toLocaleTimeString()}] Failure in current cycle:`, error.message);
     } finally {
         if (browser) {
             await browser.close();
@@ -88,38 +88,39 @@ async function sendToDiscord(name, stock) {
         embeds: [{
             title: `🔄 Live Stock Monitor`,
             color: 5814783,
-            description: `🕒 **Última atualização:** <t:${unixTimestamp}:R> (<t:${unixTimestamp}:f>)`,
+            // Linha em branco (\n) adicionada para dar o espaçamento que você pediu
+            description: `🕒 **Last updated:** <t:${unixTimestamp}:R> (<t:${unixTimestamp}:f>)\n\u200b`,
             fields: [
-                { name: "📦 Produto", value: `**${name}**`, inline: true },
-                { name: "🔢 Estoque Atual", value: `\`${stock}\` ${CUSTOM_MESSAGE}`, inline: true }
+                { name: "📦 Product", value: `**${name}**`, inline: true },
+                { name: "🔢 Current Stock", value: `\`${stock}\` ${CUSTOM_MESSAGE}`, inline: true }
             ],
-            footer: { text: `Monitoramento Automático Ativo` }
+            footer: { text: `Automated Monitoring Active` }
         }]
     };
 
     try {
         if (!lastDiscordMessageId) {
-            console.log('Nenhum ID definido. Criando nova mensagem...');
+            console.log('No ID defined. Creating new message...');
             const response = await axios.post(`${DISCORD_WEBHOOK_URL}?wait=true`, embed);
             lastDiscordMessageId = response.data.id;
-            console.log(`NOVA MENSAGEM CRIADA! ID gerado: ${lastDiscordMessageId}`);
+            console.log(`NEW MESSAGE CREATED! ID generated: ${lastDiscordMessageId}`);
         } else {
-            console.log(`[${new Date().toLocaleTimeString()}] Editando a mensagem ID: ${lastDiscordMessageId}`);
+            console.log(`[${new Date().toLocaleTimeString()}] Editing message ID: ${lastDiscordMessageId}`);
             await axios.patch(`${DISCORD_WEBHOOK_URL}/messages/${lastDiscordMessageId}`, embed);
-            console.log('Mensagem atualizada com sucesso.');
+            console.log('Discord message updated successfully.');
         }
     } catch (error) {
         if (error.response && error.response.status === 404) {
-            console.log('O ID configurado falhou (404). Gerando nova postagem de segurança...');
+            console.log('The configured ID failed (404). Generating a new fallback post...');
             try {
                 const response = await axios.post(`${DISCORD_WEBHOOK_URL}?wait=true`, embed);
                 lastDiscordMessageId = response.data.id;
-                console.log(`ATENÇÃO: Novo ID gerado automaticamente. Atualize a linha 14 com: ${lastDiscordMessageId}`);
+                console.log(`WARNING: New ID generated automatically. Update line 14 with: ${lastDiscordMessageId}`);
             } catch (postError) {
-                console.error('Erro ao recuperar mensagem:', postError.message);
+                console.error('Error recovering message:', postError.message);
             }
         } else {
-            console.error('Erro na requisição para o Discord:', error.message);
+            console.error('Error sending request to Discord:', error.message);
         }
     }
 }
@@ -131,10 +132,10 @@ async function startInfiniteLoop() {
 
     while (Date.now() - START_TIME < MAX_DURATION) {
         await checkStock();
-        console.log(`Aguardando 5 minutos para o próximo ciclo...\n-----------------------------`);
+        console.log(`Waiting 5 minutes for next cycle...\n-----------------------------`);
         await new Promise(resolve => setTimeout(resolve, FIVE_MINUTES));
     }
-    console.log("Turno completo concluído. Aguardando a rotação de máquinas do GitHub Actions.");
+    console.log("Full shift completed. Awaiting GitHub Actions machine rotation.");
 }
 
 startInfiniteLoop();

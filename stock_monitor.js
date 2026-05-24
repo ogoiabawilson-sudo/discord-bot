@@ -12,7 +12,7 @@ const SHOP_ID = '237519';
 const CUSTOM_MESSAGE = 'units available';
 
 // 🔴 SE VOCÊ JÁ TIVER UM ID DE MENSAGEM FIXO, COLOQUE ELE ENTRE AS ASPAS ABAIXO:
-// Exemplo: let lastDiscordMessageId = '1508010138617774102';
+// Exemplo: let lastDiscordMessageId = 1508011150346944612;
 let lastDiscordMessageId = null;
 
 async function checkStock() {

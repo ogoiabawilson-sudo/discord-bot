@@ -2,8 +2,8 @@ name: Run Stock Monitor
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # Comando que agenda a execução a cada 5 minutos
-  workflow_dispatch: # Permite que você clique em um botão para testar manualmente
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 jobs:
   monitor:
@@ -18,7 +18,13 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Dependencies
+      # PASSO NOVO: Garante que o navegador necessário para burlar o Cloudflare esteja instalado na nuvem
+      - name: Install Chromium Browser on Linux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
+
+       Richmond- Install Dependencies
         run: npm install
 
       - name: Execute Monitor Script

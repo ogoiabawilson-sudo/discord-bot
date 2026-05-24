@@ -4,7 +4,7 @@ const axios = require('axios');
 
 puppeteer.use(StealthPlugin());
 
-// Configurações fixas
+// Configurações fixas das suas credenciais e produto
 const SELLAUTH_API_KEY = '5790468|c3Kv1kCC2CsBCKGeMAkyOkLzI0uvyxN6RhEFm5y46c3dd7c9';
 const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1507995961287249974/fu6ATVpvFgRh8vCDD3XYJkSziPDSjD41ArNLBDgO8LjPFZg4idgO5hZJJEnc88EwSku7';
 const TARGET_PRODUCT_ID = 716794; 
@@ -18,15 +18,15 @@ async function checkStock() {
     let browser;
     
     try {
-        // Configuração otimizada para o ambiente Linux do GitHub Actions
+        // Inicialização idêntica para o ambiente Linux do GitHub Actions
         browser = await puppeteer.launch({ 
             headless: true, 
-            executablePath: '/usr/bin/chromium-browser', // Caminho padrão do Chromium no Linux do GitHub
+            executablePath: '/usr/bin/google-chrome-stable', 
             args: [
                 '--no-sandbox', 
                 '--disable-setuid-sandbox',
                 '--disable-blink-features=AutomationControlled',
-                '--disable-dev-shm-usage', // Evita problemas de memória em contêineres Docker/Nuvem
+                '--disable-dev-shm-usage',
                 '--disable-gpu'
             ]
         });
@@ -39,11 +39,13 @@ async function checkStock() {
             'Content-Type': 'application/json'
         });
 
+        // Acessa a API de produtos da sua loja no SellAuth
         await page.goto(`https://api.sellauth.com/v1/shops/${SHOP_ID}/products`, {
             waitUntil: 'networkidle2',
             timeout: 60000
         });
 
+        // Aguarda 5 segundos para carregar o conteúdo após passar pelas checagens
         await new Promise(resolve => setTimeout(resolve, 5000));
         const content = await page.evaluate(() => document.querySelector('body').innerText);
         
@@ -107,6 +109,5 @@ async function sendToDiscord(name, stock) {
     }
 }
 
-// ATENÇÃO: Como o GitHub Actions vai abrir o script, rodar e fechar a máquina a cada 5 minutos,
-// nós NÃO precisamos do "setInterval" rodando de forma infinita aqui dentro. O próprio GitHub controla o tempo.
+// Executa uma vez por disparo (o agendamento de 5 minutos é controlado pelo arquivo run.yml)
 checkStock();

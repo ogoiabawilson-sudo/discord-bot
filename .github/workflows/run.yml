@@ -2,12 +2,14 @@ name: Run Stock Monitor
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '0 */4 * * *' # Roda a cada 4 horas para garantir que se o script principal cair, uma máquina reserva assume
   workflow_dispatch:
 
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    # Configura o tempo máximo total que este job pode rodar antes do GitHub reiniciar (6 horas é o limite da plataforma)
+    timeout-minutes: 350 
 
     steps:
       - name: Checkout Repository Code

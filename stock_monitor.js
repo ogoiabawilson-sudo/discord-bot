@@ -4,14 +4,13 @@ const axios = require('axios');
 
 puppeteer.use(StealthPlugin());
 
-// Configurações fixas do seu produto e credenciais
+// Configurações fixas
 const SELLAUTH_API_KEY = '5790468|c3Kv1kCC2CsBCKGeMAkyOkLzI0uvyxN6RhEFm5y46c3dd7c9';
 const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1507995961287249974/fu6ATVpvFgRh8vCDD3XYJkSziPDSjD41ArNLBDgO8LjPFZg4idgO5hZJJEnc88EwSku7';
 const TARGET_PRODUCT_ID = 716794; 
 const SHOP_ID = '237519'; 
 const CUSTOM_MESSAGE = 'units available';
 
-// Controladores de estado do bot
 let lastDiscordMessageId = null;
 
 async function checkStock() {
@@ -19,19 +18,20 @@ async function checkStock() {
     let browser;
     
     try {
-        // Inicialização configurada para rodar silenciosamente em servidores Linux/Nuvem
+        // Configuração otimizada para o ambiente Linux do GitHub Actions
         browser = await puppeteer.launch({ 
             headless: true, 
+            executablePath: '/usr/bin/chromium-browser', // Caminho padrão do Chromium no Linux do GitHub
             args: [
                 '--no-sandbox', 
                 '--disable-setuid-sandbox',
-                '--disable-blink-features=AutomationControlled'
+                '--disable-blink-features=AutomationControlled',
+                '--disable-dev-shm-usage', // Evita problemas de memória em contêineres Docker/Nuvem
+                '--disable-gpu'
             ]
         });
         
         const page = await browser.newPage();
-        
-        // Simula um navegador comum para evitar bloqueios de segurança
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
         
         await page.setExtraHTTPHeaders({
@@ -39,15 +39,12 @@ async function checkStock() {
             'Content-Type': 'application/json'
         });
 
-        // Acessa os dados diretamente pela API do seu painel
         await page.goto(`https://api.sellauth.com/v1/shops/${SHOP_ID}/products`, {
             waitUntil: 'networkidle2',
             timeout: 60000
         });
 
-        // Aguarda 5 segundos para a resposta processar completamente
         await new Promise(resolve => setTimeout(resolve, 5000));
-
         const content = await page.evaluate(() => document.querySelector('body').innerText);
         
         if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
@@ -63,11 +60,11 @@ async function checkStock() {
                     
                     await sendToDiscord(productName, currentStock);
                 } else {
-                    console.log(`Product ID ${TARGET_PRODUCT_ID} not found in stock response.`);
+                    console.log(`Product ID ${TARGET_PRODUCT_ID} not found.`);
                 }
             }
         } else {
-            console.error('Failed to bypass challenge or cloudflare structure changed.');
+            console.error('Failed to bypass challenge. Content received:', content.substring(0, 100));
         }
 
     } catch (error) {
@@ -95,27 +92,21 @@ async function sendToDiscord(name, stock) {
 
     try {
         if (!lastDiscordMessageId) {
-            // Cria a mensagem inicial no canal
             const response = await axios.post(`${DISCORD_WEBHOOK_URL}?wait=true`, embed);
             lastDiscordMessageId = response.data.id;
             console.log(`Initial monitoring post created (ID: ${lastDiscordMessageId}).`);
         } else {
-            // Edita continuamente o mesmo post a cada 5 minutos
             await axios.patch(`${DISCORD_WEBHOOK_URL}/messages/${lastDiscordMessageId}`, embed);
             console.log(`Discord status post successfully updated.`);
         }
     } catch (error) {
         console.error('Error contacting Discord webhook:', error.message);
-        // Se a mensagem original for apagada no Discord, limpa o ID para recriá-la no próximo ciclo
         if (error.response && error.response.status === 404) {
             lastDiscordMessageId = null;
         }
     }
 }
 
-// Execução imediata ao ligar
+// ATENÇÃO: Como o GitHub Actions vai abrir o script, rodar e fechar a máquina a cada 5 minutos,
+// nós NÃO precisamos do "setInterval" rodando de forma infinita aqui dentro. O próprio GitHub controla o tempo.
 checkStock();
-
-// Configurado para rodar a cada 5 minutos (5 * 60 * 1000 milissegundos)
-const FIVE_MINUTES = 5 * 60 * 1000;
-setInterval(checkStock, FIVE_MINUTES);

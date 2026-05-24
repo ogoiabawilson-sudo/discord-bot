@@ -85,7 +85,7 @@ async function sendToDiscord(name, stock) {
 
     const embed = {
         embeds: [{
-            title: `Live stock — liquidflow.mysellauth.com`,
+            title: `Live stock 🔷 liquidflow.mysellauth.com`,
             color: 5814783,
             // Formato limpo usando a marcação exata do seu modelo de exemplo
             description: `**__CS2__**\n✅ **Premier Ready** — \`${stock}\`\n\n*Last updated • <t:${unixTimestamp}:R>*`

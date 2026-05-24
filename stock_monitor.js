@@ -9,7 +9,6 @@ const SELLAUTH_API_KEY = '5790468|c3Kv1kCC2CsBCKGeMAkyOkLzI0uvyxN6RhEFm5y46c3dd7
 const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1507995961287249974/fu6ATVpvFgRh8vCDD3XYJkSziPDSjD41ArNLBDgO8LjPFZg4idgO5hZJJEnc88EwSku7';
 const TARGET_PRODUCT_ID = 716794; 
 const SHOP_ID = '237519'; 
-const CUSTOM_MESSAGE = 'units available';
 
 // 🛑 SEU ID FIXO E ESTÁVEL DO DISCORD
 let lastDiscordMessageId = '1508134899020988546';
@@ -81,20 +80,15 @@ async function checkStock() {
 }
 
 async function sendToDiscord(name, stock) {
-    // Transforma o horário atual em segundos Unix para o Discord tratar o fuso automaticamente
+    // Transforma o horário atual em segundos Unix para o timestamp relativo do Discord
     const unixTimestamp = Math.floor(Date.now() / 1000);
 
     const embed = {
         embeds: [{
-            title: `🔄 Live Stock Monitor`,
+            title: `Live stock — www.cs2nfa.shop`,
             color: 5814783,
-            // Linha em branco (\n) adicionada para dar o espaçamento que você pediu
-            description: `🕒 **Last updated:** <t:${unixTimestamp}:R> (<t:${unixTimestamp}:f>)\n\u200b`,
-            fields: [
-                { name: "📦 Product", value: `**${name}**`, inline: true },
-                { name: "🔢 Current Stock", value: `\`${stock}\` ${CUSTOM_MESSAGE}`, inline: true }
-            ],
-            footer: { text: `Automated Monitoring Active` }
+            // Formato limpo usando a marcação exata do seu modelo de exemplo
+            description: `**__CS2__**\n✅ **Premier Ready** — \`${stock}\`\n\n*Last updated • <t:${unixTimestamp}:R>*`
         }]
     };
 

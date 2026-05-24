@@ -11,11 +11,11 @@ const TARGET_PRODUCT_ID = 716794;
 const SHOP_ID = '237519'; 
 const CUSTOM_MESSAGE = 'units available';
 
-// ID inicial. Se o Discord der 404, o próprio script limpa essa variável e gera um novo post automaticamente.
+// ID da sua mensagem do Discord
 let lastDiscordMessageId = '1508011150346944612';
 
 async function checkStock() {
-    console.log(`[${new Date().toLocaleTimeString()}] Executing stock check...`);
+    console.log(`[${new Date().toLocaleTimeString()}] -> Iniciando checagem de estoque...`);
     let browser;
     
     try {
@@ -32,18 +32,24 @@ async function checkStock() {
         });
         
         const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, Gecko) Chrome/122.0.0.0 Safari/537.36');
+        
+        // Timeout de segurança: Se travar no carregamento por mais de 30 segundos, cancela e joga pro erro
+        page.setDefaultNavigationTimeout(30000); 
+        page.setDefaultTimeout(30000);
+
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
         
         await page.setExtraHTTPHeaders({
             'Authorization': `Bearer ${SELLAUTH_API_KEY}`,
             'Content-Type': 'application/json'
         });
 
+        console.log(`[${new Date().toLocaleTimeString()}] Acessando API do SellAuth...`);
         await page.goto(`https://api.sellauth.com/v1/shops/${SHOP_ID}/products`, {
-            waitUntil: 'networkidle2',
-            timeout: 60000
+            waitUntil: 'networkidle2'
         });
 
+        // Aguarda 5 segundos para garantir a descriptografia do Cloudflare
         await new Promise(resolve => setTimeout(resolve, 5000));
         const content = await page.evaluate(() => document.querySelector('body').innerText);
         
@@ -57,20 +63,23 @@ async function checkStock() {
                 if (matchedProduct) {
                     const currentStock = matchedProduct.stock_count !== undefined ? matchedProduct.stock_count : (matchedProduct.stock || 0); 
                     const productName = matchedProduct.name || 'Unknown Product';
-                    console.log(`Product found: ${productName} | Stock: ${currentStock}`);
+                    console.log(`[${new Date().toLocaleTimeString()}] Sucesso! Produto: ${productName} | Estoque: ${currentStock}`);
                     
                     await sendToDiscord(productName, currentStock);
+                } else {
+                    console.log(`[${new Date().toLocaleTimeString()}] Produto ID ${TARGET_PRODUCT_ID} não foi encontrado na lista.`);
                 }
             }
         } else {
-            console.error('Failed to parse API response.');
+            console.error(`[${new Date().toLocaleTimeString()}] Erro: Resposta da API não é um JSON válido.`);
         }
 
     } catch (error) {
-        console.error('Error during run:', error.message);
+        console.error(`[${new Date().toLocaleTimeString()}] Falha no ciclo atual (Timeout/Erro):`, error.message);
     } finally {
         if (browser) {
             await browser.close();
+            console.log(`[${new Date().toLocaleTimeString()}] Navegador fechado.`);
         }
     }
 }
@@ -91,23 +100,19 @@ async function sendToDiscord(name, stock) {
 
     try {
         if (!lastDiscordMessageId) {
-            // Se não houver ID válido, cria uma mensagem nova
-            console.log('Creating a brand new post on Discord...');
+            console.log('Criando nova mensagem no Discord...');
             const response = await axios.post(`${DISCORD_WEBHOOK_URL}?wait=true`, embed);
             lastDiscordMessageId = response.data.id;
-            console.log(`New stable Message ID registered: ${lastDiscordMessageId}`);
+            console.log(`Nova mensagem criada com ID: ${lastDiscordMessageId}`);
         } else {
-            // Tenta editar a mensagem existente
-            console.log(`Attempting to edit message ID: ${lastDiscordMessageId}`);
+            console.log(`Editando mensagem existente ID: ${lastDiscordMessageId}`);
             await axios.patch(`${DISCORD_WEBHOOK_URL}/messages/${lastDiscordMessageId}`, embed);
-            console.log('Discord post updated successfully.');
+            console.log('Mensagem no Discord atualizada com sucesso.');
         }
     } catch (error) {
-        console.error('Discord webhook error:', error.message);
-        
-        // CORREÇÃO CRUCIAL: Se der erro 404, reseta o ID para criar um novo post válido no próximo ciclo
+        console.error('Erro ao enviar para o Discord:', error.message);
         if (error.response && error.response.status === 404) {
-            console.log('Old message ID is dead. Resetting to generate a new one next time.');
+            console.log('ID antigo inválido (404). Resetando para criar nova mensagem no próximo ciclo.');
             lastDiscordMessageId = null;
         }
     }
@@ -120,11 +125,11 @@ async function startInfiniteLoop() {
 
     while (Date.now() - START_TIME < MAX_DURATION) {
         await checkStock();
-        console.log(`Waiting 5 minutes for next verification cycle...`);
+        console.log(`Aguardando 5 minutos para o próximo ciclo...\n-----------------------------`);
         await new Promise(resolve => setTimeout(resolve, FIVE_MINUTES));
     }
     
-    console.log("Reaching engine execution limit. Exiting clean to allow workflow rotation.");
+    console.log("Limite de tempo da máquina atingido. Encerrando para rotação.");
 }
 
 startInfiniteLoop();

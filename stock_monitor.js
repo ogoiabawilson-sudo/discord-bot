@@ -12,7 +12,7 @@ const SHOP_ID = '237519';
 const CUSTOM_MESSAGE = 'units available';
 
 // 🛑 COLOQUE AQUI O ID DA MENSAGEM QUE VOCÊ QUER QUE SEJA A ÚNICA NO CANAL:
-let lastDiscordMessageId = null;
+let lastDiscordMessageId = '1508134899020988546';
 
 async function checkStock() {
     console.log(`[${new Date().toLocaleTimeString()}] -> Iniciando checagem de estoque...`);

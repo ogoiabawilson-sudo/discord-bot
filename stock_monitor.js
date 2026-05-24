@@ -11,8 +11,32 @@ const TARGET_PRODUCT_ID = 716794;
 const SHOP_ID = '237519'; 
 const CUSTOM_MESSAGE = 'units available';
 
-// ID da sua mensagem do Discord
-let lastDiscordMessageId = '1508011150346944612';
+// Transforma a URL do webhook em URL de leitura do canal
+const DISCORD_CHANNEL_API = DISCORD_WEBHOOK_URL.split('/webhooks/')[0] + '/channels/' + DISCORD_WEBHOOK_URL.split('/webhooks/')[1].split('/')[0] + '/messages';
+
+async function getLatestWebhookMessageId() {
+    try {
+        // Busca as últimas 10 mensagens do canal do Discord
+        const response = await axios.get(`${DISCORD_CHANNEL_API}?limit=10`, {
+            headers: { 'Authorization': `Bot ${SELLAUTH_API_KEY}` } // Tenta ler público ou via webhook complementar
+        });
+        
+        if (response.data && Array.isArray(response.data)) {
+            // Procura a mensagem mais recente que foi enviada por um Webhook (tipo 7 do Discord) ou que tenha o título do Monitor
+            const webhookMsg = response.data.find(msg => 
+                msg.webhook_id || (msg.embeds && msg.embeds.length > 0 && msg.embeds[0].title === '🔄 Live Stock Monitor')
+            );
+            if (webhookMsg) {
+                console.log(`[${new Date().toLocaleTimeString()}] Mensagem antiga encontrada no canal! ID: ${webhookMsg.id}`);
+                return webhookMsg.id;
+            }
+        }
+    } catch (e) {
+        // Se o token da API não permitir leitura direta do canal, usamos a estratégia de fallback seguro
+        console.log(`[${new Date().toLocaleTimeString()}] Histórico indisponível por API direta. Usando ID padrão.`);
+    }
+    return null;
+}
 
 async function checkStock() {
     console.log(`[${new Date().toLocaleTimeString()}] -> Iniciando checagem de estoque...`);
@@ -32,8 +56,6 @@ async function checkStock() {
         });
         
         const page = await browser.newPage();
-        
-        // Timeout de segurança: Se travar no carregamento por mais de 30 segundos, cancela e joga pro erro
         page.setDefaultNavigationTimeout(30000); 
         page.setDefaultTimeout(30000);
 
@@ -44,12 +66,10 @@ async function checkStock() {
             'Content-Type': 'application/json'
         });
 
-        console.log(`[${new Date().toLocaleTimeString()}] Acessando API do SellAuth...`);
         await page.goto(`https://api.sellauth.com/v1/shops/${SHOP_ID}/products`, {
             waitUntil: 'networkidle2'
         });
 
-        // Aguarda 5 segundos para garantir a descriptografia do Cloudflare
         await new Promise(resolve => setTimeout(resolve, 5000));
         const content = await page.evaluate(() => document.querySelector('body').innerText);
         
@@ -66,20 +86,15 @@ async function checkStock() {
                     console.log(`[${new Date().toLocaleTimeString()}] Sucesso! Produto: ${productName} | Estoque: ${currentStock}`);
                     
                     await sendToDiscord(productName, currentStock);
-                } else {
-                    console.log(`[${new Date().toLocaleTimeString()}] Produto ID ${TARGET_PRODUCT_ID} não foi encontrado na lista.`);
                 }
             }
-        } else {
-            console.error(`[${new Date().toLocaleTimeString()}] Erro: Resposta da API não é um JSON válido.`);
         }
 
     } catch (error) {
-        console.error(`[${new Date().toLocaleTimeString()}] Falha no ciclo atual (Timeout/Erro):`, error.message);
+        console.error(`[${new Date().toLocaleTimeString()}] Falha no ciclo atual:`, error.message);
     } finally {
         if (browser) {
             await browser.close();
-            console.log(`[${new Date().toLocaleTimeString()}] Navegador fechado.`);
         }
     }
 }
@@ -98,22 +113,20 @@ async function sendToDiscord(name, stock) {
         }]
     };
 
+    // Tenta rastrear qual foi a última mensagem real deixada no chat para não duplicar
+    let targetId = await getLatestWebhookMessageId() || '1508011150346944612';
+
     try {
-        if (!lastDiscordMessageId) {
-            console.log('Criando nova mensagem no Discord...');
-            const response = await axios.post(`${DISCORD_WEBHOOK_URL}?wait=true`, embed);
-            lastDiscordMessageId = response.data.id;
-            console.log(`Nova mensagem criada com ID: ${lastDiscordMessageId}`);
-        } else {
-            console.log(`Editando mensagem existente ID: ${lastDiscordMessageId}`);
-            await axios.patch(`${DISCORD_WEBHOOK_URL}/messages/${lastDiscordMessageId}`, embed);
-            console.log('Mensagem no Discord atualizada com sucesso.');
-        }
+        console.log(`[${new Date().toLocaleTimeString()}] Editando postagem principal...`);
+        await axios.patch(`${DISCORD_WEBHOOK_URL}/messages/${targetId}`, embed);
+        console.log('Mensagem atualizada com sucesso.');
     } catch (error) {
-        console.error('Erro ao enviar para o Discord:', error.message);
+        // Se a mensagem sumiu por completo, cria uma nova
         if (error.response && error.response.status === 404) {
-            console.log('ID antigo inválido (404). Resetando para criar nova mensagem no próximo ciclo.');
-            lastDiscordMessageId = null;
+            console.log('Nenhuma mensagem compatível encontrada para edição. Criando um novo post limpo...');
+            await axios.post(`${DISCORD_WEBHOOK_URL}`, embed);
+        } else {
+            console.error('Erro na comunicação com Discord:', error.message);
         }
     }
 }
@@ -128,8 +141,6 @@ async function startInfiniteLoop() {
         console.log(`Aguardando 5 minutos para o próximo ciclo...\n-----------------------------`);
         await new Promise(resolve => setTimeout(resolve, FIVE_MINUTES));
     }
-    
-    console.log("Limite de tempo da máquina atingido. Encerrando para rotação.");
 }
 
 startInfiniteLoop();

@@ -11,7 +11,7 @@ const TARGET_PRODUCT_ID = 716794;
 const SHOP_ID = '237519'; 
 const CUSTOM_MESSAGE = 'units available';
 
-// Cole aqui o ID estável da sua mensagem do Discord para continuar editando ela:
+// ID inicial. Se o Discord der 404, o próprio script limpa essa variável e gera um novo post automaticamente.
 let lastDiscordMessageId = '1508011150346944612';
 
 async function checkStock() {
@@ -32,7 +32,7 @@ async function checkStock() {
         });
         
         const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, Gecko) Chrome/122.0.0.0 Safari/537.36');
         
         await page.setExtraHTTPHeaders({
             'Authorization': `Bearer ${SELLAUTH_API_KEY}`,
@@ -91,23 +91,32 @@ async function sendToDiscord(name, stock) {
 
     try {
         if (!lastDiscordMessageId) {
+            // Se não houver ID válido, cria uma mensagem nova
+            console.log('Creating a brand new post on Discord...');
             const response = await axios.post(`${DISCORD_WEBHOOK_URL}?wait=true`, embed);
             lastDiscordMessageId = response.data.id;
-            console.log(`New message generated: ${lastDiscordMessageId}`);
+            console.log(`New stable Message ID registered: ${lastDiscordMessageId}`);
         } else {
+            // Tenta editar a mensagem existente
+            console.log(`Attempting to edit message ID: ${lastDiscordMessageId}`);
             await axios.patch(`${DISCORD_WEBHOOK_URL}/messages/${lastDiscordMessageId}`, embed);
             console.log('Discord post updated successfully.');
         }
     } catch (error) {
         console.error('Discord webhook error:', error.message);
+        
+        // CORREÇÃO CRUCIAL: Se der erro 404, reseta o ID para criar um novo post válido no próximo ciclo
+        if (error.response && error.response.status === 404) {
+            console.log('Old message ID is dead. Resetting to generate a new one next time.');
+            lastDiscordMessageId = null;
+        }
     }
 }
 
-// Função para manter o script rodando continuamente dentro dos limites do GitHub
 async function startInfiniteLoop() {
     const FIVE_MINUTES = 5 * 60 * 1000;
     const START_TIME = Date.now();
-    const MAX_DURATION = 5.5 * 60 * 60 * 1000; // Limita a execução a 5 horas e meia para o GitHub não cortar com erro
+    const MAX_DURATION = 5.5 * 60 * 60 * 1000; 
 
     while (Date.now() - START_TIME < MAX_DURATION) {
         await checkStock();

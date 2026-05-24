@@ -11,12 +11,11 @@ const TARGET_PRODUCT_ID = 716794;
 const SHOP_ID = '237519'; 
 const CUSTOM_MESSAGE = 'units available';
 
-// 🔴 SE VOCÊ JÁ TIVER UM ID DE MENSAGEM FIXO, COLOQUE ELE ENTRE AS ASPAS ABAIXO:
-// Exemplo: let lastDiscordMessageId = 1508011150346944612;
-let lastDiscordMessageId = null;
+// Cole aqui o ID estável da sua mensagem do Discord para continuar editando ela:
+let lastDiscordMessageId = '1508011150346944612';
 
 async function checkStock() {
-    console.log(`Starting stock check at ${new Date().toLocaleTimeString()}`);
+    console.log(`[${new Date().toLocaleTimeString()}] Executing stock check...`);
     let browser;
     
     try {
@@ -40,7 +39,6 @@ async function checkStock() {
             'Content-Type': 'application/json'
         });
 
-        console.log('Navigating to SellAuth API...');
         await page.goto(`https://api.sellauth.com/v1/shops/${SHOP_ID}/products`, {
             waitUntil: 'networkidle2',
             timeout: 60000
@@ -49,8 +47,6 @@ async function checkStock() {
         await new Promise(resolve => setTimeout(resolve, 5000));
         const content = await page.evaluate(() => document.querySelector('body').innerText);
         
-        console.log('Raw content snippet received:', content.substring(0, 200));
-
         if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
             const responseData = JSON.parse(content);
             const productsList = responseData.data || responseData;
@@ -61,25 +57,20 @@ async function checkStock() {
                 if (matchedProduct) {
                     const currentStock = matchedProduct.stock_count !== undefined ? matchedProduct.stock_count : (matchedProduct.stock || 0); 
                     const productName = matchedProduct.name || 'Unknown Product';
-                    console.log(`Found Product: ${productName} | Stock: ${currentStock}`);
+                    console.log(`Product found: ${productName} | Stock: ${currentStock}`);
                     
                     await sendToDiscord(productName, currentStock);
-                } else {
-                    console.log(`Product ID ${TARGET_PRODUCT_ID} not found in the product list.`);
                 }
-            } else {
-                console.log('Data structure is not an array.');
             }
         } else {
-            console.error('Bypass failed or API returned HTML. Content started with:', content.substring(0, 50));
+            console.error('Failed to parse API response.');
         }
 
     } catch (error) {
-        console.error('An error occurred during verification:', error.message);
+        console.error('Error during run:', error.message);
     } finally {
         if (browser) {
             await browser.close();
-            console.log('Browser closed.');
         }
     }
 }
@@ -100,17 +91,31 @@ async function sendToDiscord(name, stock) {
 
     try {
         if (!lastDiscordMessageId) {
-            console.log('No message ID configured. Creating a new post on Discord...');
             const response = await axios.post(`${DISCORD_WEBHOOK_URL}?wait=true`, embed);
-            console.log(`Message created! To prevent future spam, COPY this ID and put it into your script: ${response.data.id}`);
+            lastDiscordMessageId = response.data.id;
+            console.log(`New message generated: ${lastDiscordMessageId}`);
         } else {
-            console.log(`Editing existing message ID: ${lastDiscordMessageId}`);
             await axios.patch(`${DISCORD_WEBHOOK_URL}/messages/${lastDiscordMessageId}`, embed);
             console.log('Discord post updated successfully.');
         }
     } catch (error) {
-        console.error('Error sending data to Discord:', error.message);
+        console.error('Discord webhook error:', error.message);
     }
 }
 
-checkStock();
+// Função para manter o script rodando continuamente dentro dos limites do GitHub
+async function startInfiniteLoop() {
+    const FIVE_MINUTES = 5 * 60 * 1000;
+    const START_TIME = Date.now();
+    const MAX_DURATION = 5.5 * 60 * 60 * 1000; // Limita a execução a 5 horas e meia para o GitHub não cortar com erro
+
+    while (Date.now() - START_TIME < MAX_DURATION) {
+        await checkStock();
+        console.log(`Waiting 5 minutes for next verification cycle...`);
+        await new Promise(resolve => setTimeout(resolve, FIVE_MINUTES));
+    }
+    
+    console.log("Reaching engine execution limit. Exiting clean to allow workflow rotation.");
+}
+
+startInfiniteLoop();

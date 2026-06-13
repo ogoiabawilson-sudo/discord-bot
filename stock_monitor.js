@@ -1,17 +1,32 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 
 puppeteer.use(StealthPlugin());
 
 // Configurações fixas
-const SELLAUTH_API_KEY = '5790468|c3Kv1kCC2CsBCKGeMAkyOkLzI0uvyxN6RhEFm5y46c3dd7c9';
+const SELLAUTH_API_KEY = '5846245|Io0BdrdiTBsJg5LpD8tiZbZ9yYBmVp3GOFRx0YiSf7ab0518';
 const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1507995961287249974/fu6ATVpvFgRh8vCDD3XYJkSziPDSjD41ArNLBDgO8LjPFZg4idgO5hZJJEnc88EwSku7';
-const TARGET_PRODUCT_ID = 716794; 
-const SHOP_ID = '237519'; 
+const TARGET_PRODUCT_ID = 716794;
+const SHOP_ID = '237519';
+const MESSAGE_ID_FILE = path.join(__dirname, 'message_id.txt');
 
-// 🛑 SEU ID FIXO E ESTÁVEL DO DISCORD
-let lastDiscordMessageId = '1508134899020988546';
+function loadMessageId() {
+    try {
+        if (fs.existsSync(MESSAGE_ID_FILE)) {
+            return fs.readFileSync(MESSAGE_ID_FILE, 'utf8').trim();
+        }
+    } catch (e) {}
+    return null;
+}
+
+function saveMessageId(id) {
+    fs.writeFileSync(MESSAGE_ID_FILE, id, 'utf8');
+}
+
+let lastDiscordMessageId = loadMessageId();
 
 async function checkStock() {
     console.log(`[${new Date().toLocaleTimeString()}] -> Starting stock check...`);
@@ -97,7 +112,8 @@ async function sendToDiscord(name, stock) {
             console.log('No ID defined. Creating new message...');
             const response = await axios.post(`${DISCORD_WEBHOOK_URL}?wait=true`, embed);
             lastDiscordMessageId = response.data.id;
-            console.log(`NEW MESSAGE CREATED! ID generated: ${lastDiscordMessageId}`);
+            saveMessageId(lastDiscordMessageId);
+            console.log(`NEW MESSAGE CREATED! ID saved: ${lastDiscordMessageId}`);
         } else {
             console.log(`[${new Date().toLocaleTimeString()}] Editing message ID: ${lastDiscordMessageId}`);
             await axios.patch(`${DISCORD_WEBHOOK_URL}/messages/${lastDiscordMessageId}`, embed);
@@ -105,13 +121,15 @@ async function sendToDiscord(name, stock) {
         }
     } catch (error) {
         if (error.response && error.response.status === 404) {
-            console.log('The configured ID failed (404). Generating a new fallback post...');
+            console.log('Message not found (404). Creating new one...');
+            lastDiscordMessageId = null;
             try {
                 const response = await axios.post(`${DISCORD_WEBHOOK_URL}?wait=true`, embed);
                 lastDiscordMessageId = response.data.id;
-                console.log(`WARNING: New ID generated automatically. Update line 14 with: ${lastDiscordMessageId}`);
+                saveMessageId(lastDiscordMessageId);
+                console.log(`New message created and ID saved: ${lastDiscordMessageId}`);
             } catch (postError) {
-                console.error('Error recovering message:', postError.message);
+                console.error('Error creating message:', postError.message);
             }
         } else {
             console.error('Error sending request to Discord:', error.message);

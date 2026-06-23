@@ -1,10 +1,6 @@
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-
-puppeteer.use(StealthPlugin());
 
 const SELLAUTH_API_KEY = process.env.SELLAUTH_API_KEY;
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
@@ -30,63 +26,25 @@ let lastDiscordMessageId = loadMessageId();
 
 async function checkStock() {
     console.log(`[${new Date().toLocaleTimeString()}] -> Starting stock check...`);
-    let browser;
 
     try {
-        browser = await puppeteer.launch({
-            headless: true,
-            executablePath: '/usr/bin/google-chrome-stable',
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-blink-features=AutomationControlled',
-                '--disable-dev-shm-usage',
-                '--disable-gpu'
-            ]
+        const res = await axios.get(`https://api.sellauth.com/v1/shops/${SHOP_ID}/products`, {
+            headers: { 'Authorization': `Bearer ${SELLAUTH_API_KEY}` }
         });
 
-        const page = await browser.newPage();
-        page.setDefaultNavigationTimeout(30000);
-        page.setDefaultTimeout(30000);
+        const productsList = res.data.data || res.data;
+        const match = productsList.find(p => p.id === TARGET_PRODUCT_ID);
 
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-
-        await page.setExtraHTTPHeaders({
-            'Authorization': `Bearer ${SELLAUTH_API_KEY}`,
-            'Content-Type': 'application/json'
-        });
-
-        await page.goto(`https://api.sellauth.com/v1/shops/${SHOP_ID}/products`, {
-            waitUntil: 'networkidle2'
-        });
-
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        const content = await page.evaluate(() => document.querySelector('body').innerText);
-
-        if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
-            const responseData = JSON.parse(content);
-            const productsList = responseData.data || responseData;
-
-            if (Array.isArray(productsList)) {
-                const matchedProduct = productsList.find(p => p.id === TARGET_PRODUCT_ID);
-
-                if (matchedProduct) {
-                    const currentStock = matchedProduct.stock_count !== undefined
-                        ? matchedProduct.stock_count
-                        : (matchedProduct.stock || 0);
-                    const productName = matchedProduct.name || 'Unknown Product';
-                    console.log(`[${new Date().toLocaleTimeString()}] Success! Product: ${productName} | Stock: ${currentStock}`);
-                    await sendToDiscord(productName, currentStock);
-                }
-            }
+        if (match) {
+            const stock = match.stock_count ?? match.stock ?? 0;
+            console.log(`[${new Date().toLocaleTimeString()}] Success! Product: ${match.name} | Stock: ${stock}`);
+            await sendToDiscord(match.name, stock);
         } else {
-            console.error(`[${new Date().toLocaleTimeString()}] Invalid response received from API.`);
+            console.error(`Product ${TARGET_PRODUCT_ID} not found in API response.`);
         }
 
     } catch (error) {
-        console.error(`[${new Date().toLocaleTimeString()}] Failure in current cycle:`, error.message);
-    } finally {
-        if (browser) await browser.close();
+        console.error(`[${new Date().toLocaleTimeString()}] Failure:`, error.response?.data || error.message);
     }
 }
 
@@ -109,33 +67,25 @@ async function sendToDiscord(name, stock) {
             saveMessageId(lastDiscordMessageId);
             console.log(`NEW MESSAGE CREATED! ID saved: ${lastDiscordMessageId}`);
         } else {
-            console.log(`[${new Date().toLocaleTimeString()}] Editing message ID: ${lastDiscordMessageId}`);
+            console.log(`Editing message ID: ${lastDiscordMessageId}`);
             await axios.patch(`${DISCORD_WEBHOOK_URL}/messages/${lastDiscordMessageId}`, embed);
             console.log('Discord message updated successfully.');
         }
     } catch (error) {
-        if (error.response && error.response.status === 404) {
-            console.log('Message not found (404). Resetting ID and creating new one...');
+        if (error.response?.status === 404) {
+            console.log('Message not found (404). Resetting and creating new one...');
             lastDiscordMessageId = null;
-            try {
-                fs.unlinkSync(MESSAGE_ID_FILE);
-            } catch (e) {}
+            try { fs.unlinkSync(MESSAGE_ID_FILE); } catch (e) {}
             try {
                 const response = await axios.post(`${DISCORD_WEBHOOK_URL}?wait=true`, embed);
                 lastDiscordMessageId = response.data.id;
                 saveMessageId(lastDiscordMessageId);
-                console.log(`New message created and ID saved: ${lastDiscordMessageId}`);
-            } catch (postError) {
-                console.error('Error creating message:', postError.message);
-                if (postError.response) {
-                    console.error('Discord response:', JSON.stringify(postError.response.data));
-                }
+                console.log(`New message created. ID: ${lastDiscordMessageId}`);
+            } catch (e) {
+                console.error('Error creating message:', e.response?.data || e.message);
             }
         } else {
-            console.error('Error sending request to Discord:', error.message);
-            if (error.response) {
-                console.error('Discord response:', JSON.stringify(error.response.data));
-            }
+            console.error('Discord error:', error.response?.data || error.message);
         }
     }
 }

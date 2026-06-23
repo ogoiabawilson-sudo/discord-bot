@@ -8,7 +8,7 @@ puppeteer.use(StealthPlugin());
 
 // Configurações fixas
 const SELLAUTH_API_KEY = '5846245|Io0BdrdiTBsJg5LpD8tiZbZ9yYBmVp3GOFRx0YiSf7ab0518';
-const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1519079932939075594/EyjOK6zhtht7HHbx-bU-cwD8e8BFFJiFz19HdpClH9JcI2pSlGJbPIzxLLXGqgUjD65_';
+const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1507995961287249974/fu6ATVpvFgRh8vCDD3XYJkSziPDSjD41ArNLBDgO8LjPFZg4idgO5hZJJEnc88EwSku7';
 const TARGET_PRODUCT_ID = 716794;
 const SHOP_ID = '237519';
 const MESSAGE_ID_FILE = path.join(__dirname, 'message_id.txt');
@@ -35,7 +35,7 @@ async function checkStock() {
     try {
         browser = await puppeteer.launch({ 
             headless: true, 
-            executablePath: '/usr/bin/google-chrome-stable',
+            executablePath: '/usr/bin/google-chrome-stable', 
             args: [
                 '--no-sandbox', 
                 '--disable-setuid-sandbox',

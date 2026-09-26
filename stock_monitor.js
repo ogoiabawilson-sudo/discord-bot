@@ -51,24 +51,33 @@ async function checkStock() {
 async function sendToDiscord(name, stock) {
     const unixTimestamp = Math.floor(Date.now() / 1000);
 
-    const embed = {
-        embeds: [{
-            title: `Live stock monitor 🔷 liquidflow.mysellauth.com`,
-            color: 5814783,
-            description: `**__CS2__**\n✅ **Premier Ready** — \`${stock}\`\n\n*Last updated • <t:${unixTimestamp}:R>*`
-        }]
+    const payload = {
+        flags: 32768, // IS_COMPONENTS_V2
+        components: [
+            {
+                type: 17, // Container
+                accent_color: 5814783,
+                components: [
+                    { type: 10, content: `Live stock monitor 🔷 liquidflow.mysellauth.com` },
+                    { type: 14, divider: true, spacing: 1 },
+                    { type: 10, content: `**__CS2__**\n✅ **Premier Ready** — \`${stock}\`` },
+                    { type: 14, divider: true, spacing: 1 },
+                    { type: 10, content: `-# Last updated • <t:${unixTimestamp}:R>` }
+                ]
+            }
+        ]
     };
 
     try {
         if (!lastDiscordMessageId) {
             console.log('No ID defined. Creating new message...');
-            const response = await axios.post(`${DISCORD_WEBHOOK_URL}?wait=true`, embed);
+            const response = await axios.post(`${DISCORD_WEBHOOK_URL}?wait=true`, payload);
             lastDiscordMessageId = response.data.id;
             saveMessageId(lastDiscordMessageId);
             console.log(`NEW MESSAGE CREATED! ID saved: ${lastDiscordMessageId}`);
         } else {
             console.log(`Editing message ID: ${lastDiscordMessageId}`);
-            await axios.patch(`${DISCORD_WEBHOOK_URL}/messages/${lastDiscordMessageId}`, embed);
+            await axios.patch(`${DISCORD_WEBHOOK_URL}/messages/${lastDiscordMessageId}`, payload);
             console.log('Discord message updated successfully.');
         }
     } catch (error) {
@@ -77,7 +86,7 @@ async function sendToDiscord(name, stock) {
             lastDiscordMessageId = null;
             try { fs.unlinkSync(MESSAGE_ID_FILE); } catch (e) {}
             try {
-                const response = await axios.post(`${DISCORD_WEBHOOK_URL}?wait=true`, embed);
+                const response = await axios.post(`${DISCORD_WEBHOOK_URL}?wait=true`, payload);
                 lastDiscordMessageId = response.data.id;
                 saveMessageId(lastDiscordMessageId);
                 console.log(`New message created. ID: ${lastDiscordMessageId}`);
